@@ -14,6 +14,8 @@ action algebra; and makes both the top-down (Algae-native) and bottom-up
 doc/algae3-spec.md          the language: data model, actions, patterns, modes
 doc/sparql-to-algae3.md     compiling SPARQL to Algae 3 (both modes), with the
                             canonical nested-OPTIONAL divergence worked end to end
+doc/told-bnodes.md          re-identifying blank nodes across SPARQL responses
+                            (the algorithm behind `attach` over the SPARQL protocol)
 lib/Algae3Parser.bnf        numbered EBNF (yacker conventions)
 lib/Algae3Parser.y          bison grammar, conflict-free LALR(1); expansions use
                             the SWObjects _QX_E_Star / _QX_E_Opt naming

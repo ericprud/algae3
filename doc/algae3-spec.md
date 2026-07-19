@@ -52,7 +52,7 @@ affect only parsing). A query is their composition in document order:
 | `require <feature>` | — | processor feature / evaluation mode (§6) |
 | `load <i>` (alias `read`) | `load` | parse the document at `<i>`, **merge** into the working graph (blank nodes standardized apart) |
 | `load <i> as <g>` | `load` | parse into named graph `<g>` |
-| `attach <driver> name (…)` | `attach` | bind an external database as a matchable source (Algae2 heritage) |
+| `attach <driver> name (…)` | `attach` | bind an external database as a matchable source (Algae2 heritage); over the SPARQL protocol, response blank nodes are re-identified across round trips per [doc/told-bnodes.md](told-bnodes.md) |
 | `ask (P)` | pattern algebra | replace each result by its extensions through `P` (§4, §5) |
 | `test (P)` | `test` | keep the pipeline's result set; expose a boolean: "did `P` match?" (SPARQL `ASK`) |
 | `collect [distinct] (var… \| (expr as ?v)…) [by (?g…)] [order by…] [limit n] [offset n]` | `project`, `extend`, `groupby`, `distinct`, `orderby`, `slice` | report; solution modifiers in SPARQL's sense. `by` groups for aggregate projections (`count(distinct ?x)`, `group_concat(?x, sep)`, …); a following standalone `{expr}` action plays HAVING |
