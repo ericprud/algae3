@@ -1,0 +1,16 @@
+# SPARQL source of rolodex.a3 (OPTIONAL, FILTER, NOT EXISTS, solution modifiers).
+PREFIX Rolodex: <http://example.org/rolodex#>
+PREFIX foaf:    <http://xmlns.com/foaf/0.1/>
+SELECT DISTINCT ?friend ?street ?mbox
+FROM <http://example.org/rolodex.rdf>
+WHERE {
+  ?friend a Rolodex:Friend .
+  ?friend Rolodex:Address ?addrNode .
+  ?addrNode Rolodex:Street ?street .
+  ?friend Rolodex:age ?age .
+  FILTER (?age >= 18 && ?age < 24)
+  OPTIONAL { ?friend foaf:mbox ?mbox }
+  FILTER NOT EXISTS { ?friend Rolodex:doNotCall true }
+}
+ORDER BY ?street
+LIMIT 10 OFFSET 5

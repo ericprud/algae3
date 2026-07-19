@@ -1,0 +1,32 @@
+# Correlated negation across group scopes - distilled from a production DNF
+# rule engine.  A conjunct with ex:polarity ex:neg holds for ?component iff
+# the component is NOT a member of the conjunct's group.
+#
+# The intuitive formulation - just MINUS the membership pattern - is broken:
+# MINUS does not inherit ?component from the encompassing join, and a MINUS
+# whose right side shares no *bound* variable with its left is vacuous
+# (removes nothing).  FILTER !BOUND and NOT EXISTS variants trip over the
+# same scope wall.  The workaround is to re-inject the component binding
+# into every branch - most critically the negative ones - so the domains
+# overlap and MINUS's compatibility test engages:
+PREFIX ex: <http://a.example/ns#>
+SELECT ?conjunct ?component WHERE {
+  {
+    # positive group membership
+    VALUES ?component { <http://a.example/component/PLACEHOLDER> }
+    ?conjunct ex:polarity ex:pos .
+    ?conjunct ex:componentGroup ?group .
+    ?group ex:member ?membership .
+    ?membership ex:component ?component .
+  } UNION {
+    # negative group membership: the VALUES repetition is load-bearing
+    VALUES ?component { <http://a.example/component/PLACEHOLDER> }
+    ?conjunct ex:polarity ex:neg .
+    ?conjunct ex:componentGroup [] .
+    MINUS {
+      ?conjunct ex:componentGroup ?group .
+      ?group ex:member ?membership .
+      ?membership ex:component ?component
+    }
+  }
+}

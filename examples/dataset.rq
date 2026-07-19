@@ -1,0 +1,10 @@
+# SPARQL source of dataset.a3 (FROM, FROM NAMED, GRAPH).
+PREFIX dc: <http://purl.org/dc/elements/1.1/>
+SELECT ?doc ?title ?g ?who
+FROM <http://example.org/background.ttl>
+FROM NAMED <http://example.org/g1>
+FROM NAMED <http://example.org/g2>
+WHERE {
+  ?doc dc:title ?title .
+  GRAPH ?g { ?doc dc:creator ?who }
+}

@@ -1,0 +1,166 @@
+# manifesty.yaml - correlates Algae 3 examples with their SPARQL sources.
+#
+# Entries progress from basic graph patterns to correlated negation spanning
+# scopes, subqueries with grouping/aggregation, sorting and filtering.
+# `mode` is the evaluation mode the .a3 file requires; `demonstrates` lists
+# the features each pair exercises.  Where one SPARQL source has several
+# Algae 3 renderings, each rendering appears with its own role.
+
+manifest:
+  title: Algae 3 example manifest
+  parser: bin/algae3   # `make check` parses every algae3 entry below
+  # Evaluation: the SWObjects port (SWObjects bin/algae3) runs every entry
+  # over examples/data/*.ttl; examples/expected/*.expected hold the golden
+  # results in its --sorted-bindings format. SWObjects tests/test_Algae3.cpp
+  # differential-tests the two modes: all entries agree except the two
+  # documented divergences (nested-optional, negation-scoped).
+  data: data/
+  expected: expected/
+
+entries:
+
+  - id: bgp
+    title: Basic graph pattern
+    sparql: annotations.rq
+    algae3:
+      - file: annotations.a3
+        mode: topdown
+    demonstrates: [bgp, predicate-object-lists, ns-declarations, load]
+    notes: >
+      The classic Annotea query from the Algae2 HOWTO.  On conjunctive
+      queries the two evaluation modes agree; only the operator names in the
+      emitted algebra differ.
+
+  - id: optional-filter-negation
+    title: OPTIONAL, FILTER, NOT EXISTS, solution modifiers
+    sparql: rolodex.rq
+    algae3:
+      - file: rolodex.a3
+        mode: topdown
+    demonstrates: [optional, term-constraints, negation, distinct, order-by, limit, offset]
+    notes: >
+      Algae2's term-level `~` and `!` generalized to subpatterns; the `{...}`
+      constraint rides on the ?age object.  `collect distinct ... order by
+      ... limit ... offset` carries SPARQL's solution modifiers.
+
+  - id: dataset
+    title: Dataset construction and GRAPH
+    sparql: dataset.rq
+    algae3:
+      - file: dataset.a3
+        mode: topdown
+    demonstrates: [from, from-named, graph]
+    notes: >
+      `load` = FROM (merge into the working graph), `load ... as` = FROM
+      NAMED, `in ?g (...)` = GRAPH.  Compiling SPARQL fixes `load`'s
+      contract: merge with blank nodes standardized apart, `as` leaving the
+      working graph untouched.
+
+  - id: connectives
+    title: The Algae connective family
+    sparql: connectives.rq
+    algae3:
+      - file: connectives.a3
+        mode: topdown
+    demonstrates: [union, orelse, munion, diff, let, bindings]
+    notes: >
+      `|&` is UNION and `|!` is MINUS; `||` (first-nonempty orelse) and `|-`
+      (proof-merging union) exceed SPARQL - the .rq shows the nearest idioms
+      (COALESCE over OPTIONALs; plain UNION) and is NOT semantically
+      equivalent for those two connectives.
+
+  - id: nested-optional
+    title: Doubly nested OPTIONAL - where the two semantics diverge
+    sparql: nested-optional.rq
+    algae3:
+      - file: from-sparql-topdown.a3
+        mode: topdown
+        role: intuitive reading; the inner FILTER sees the inherited ?v
+      - file: from-sparql-bottomup.a3
+        mode: bottomup
+        role: >
+          SPARQL-faithful: each group scoped, out-of-scope ?v renamed apart
+          to ?v_1 (unbound there, so the filter errors and eliminates)
+    demonstrates: [optional, filter-scope, scope-share, fresh-variables, mode-divergence]
+    notes: >
+      Over { :a :p 1 . :b :q 9 . :c :r 7 }: top-down yields {v=1,w=9,u=7};
+      bottom-up yields {v=1,w=9} with ?u unbound.  The worked evaluation is
+      in doc/sparql-to-algae3.md section 5.
+
+  - id: negation-scoped
+    title: Correlated negation spanning scopes (the VALUES-injection problem)
+    sparql: negation-scoped.rq
+    algae3:
+      - file: negation-scoped-topdown.a3
+        mode: topdown
+        role: >
+          ONE bindings site; `!(...)` inherits ?component and ?conjunct, so
+          the intuitive formulation just works
+      - file: negation-scoped-bottomup.a3
+        mode: bottomup
+        role: >
+          SPARQL-faithful: the injection reappears inside each scoped UNION
+          branch, on the left of the `|!`, exactly as the SPARQL workaround
+          requires
+    demonstrates: [minus, negation-correlation, values-injection, scope-share, union]
+    notes: >
+      The core problem: a variable (potentially) bound in an encompassing
+      join is used in a negative inner pattern, but MINUS / NOT EXISTS /
+      FILTER(!BOUND(...)) do not inherit the parent bindings - a MINUS whose
+      right side shares no *bound* variable with its left is vacuous and
+      removes nothing.  SPARQL's workaround re-injects the binding (VALUES)
+      into every negative branch so the domains overlap; top-down Algae 3
+      makes the negation correlated and needs one injection, total.
+      Distilled from the negative-group-membership branch of
+      rule-engine-dnf.rq.
+
+  - id: subquery-agg
+    title: Subquery with GROUP BY, aggregation, HAVING, sorting
+    sparql: subquery-agg.rq
+    algae3:
+      - file: subquery-agg.a3
+        mode: topdown
+    demonstrates: [subquery, scope-pipeline, group-by, count-distinct, group-concat, having, order-by-desc, limit]
+    notes: >
+      Subqueries are scoped sub-pipelines: `scope ( ask ... collect ... by
+      (...) ) share (...)`.  A standalone `{ ?n >= 2 }` after the scope
+      plays HAVING.  In bottom-up mode a scope evaluates from the unit
+      result set (SPARQL subselect isolation); in top-down mode the
+      enclosing bindings flow in (lateral subquery).
+
+  - id: rule-engine-dnf
+    title: DNF rule engine (anonymized production query)
+    sparql: rule-engine-dnf.rq
+    algae3:
+      - file: rule-engine-dnf.a3
+        mode: topdown
+        role: >
+          top-down rendering: one component injection for the whole query;
+          negative-polarity branches use correlated `!`; each SELECT-in-
+          SELECT aggregation layer becomes a scoped ask / ordering-collect /
+          aggregating-collect pipeline
+    demonstrates:
+      [values-injection, correlated-negation, union, subquery, group-by,
+       count, count-distinct, group-concat, order-by, filter, let,
+       expression-builtins, universal-quantification-by-counting]
+    notes: >
+      Rules fire when ALL selectors pass (selector count == passed count);
+      a selector passes when ANY disjunct passes; a disjunct passes when ALL
+      conjuncts pass (per-disjunct count comparison) - universal
+      quantification done by counting, at two levels.  The SPARQL source
+      needs its VALUES ?component block in all six branches; the negative
+      branches depend on it for MINUS compatibility (see negation-scoped).
+      The .a3 uses `oneof(?x, a, b, ...)` for SPARQL's `?x IN (a, b, ...)`
+      since `in` is Algae 3's GRAPH keyword.  Aggregate arguments take the
+      separator as a plain second argument: group_concat(?x, ", ").
+
+expression-builtin-map:
+  # SPARQL builtin/operator -> Algae 3 call syntax (case per source)
+  "= (in FILTER)": "=="
+  "IN (list)": oneof(x, e1, e2, ...)
+  "IF(c,t,e)": if(c, t, e)
+  "COALESCE": coalesce(...)
+  "STR / STRAFTER / REPLACE / CONCAT": str(...) strafter(...) replace(...) concat(...)
+  "COUNT(DISTINCT ?x)": count(distinct ?x)
+  "GROUP_CONCAT(?x; SEPARATOR=s)": group_concat(?x, s)
+  "BOUND / isIRI / isBlank / isLiteral / regex": same name, call syntax

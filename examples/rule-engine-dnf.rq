@@ -1,0 +1,174 @@
+# DNF rule engine (anonymized from a production system).
+#
+# Vocabulary:
+#   Group membership:  ex:componentGroup / ex:member / ex:component
+#   Attribute eq/cmp:  ex:attribute <pred> ; ex:eq|lt|gt|le|ge <threshold>
+#   Type check:        ex:type <class>
+#   Polarity:          ex:polarity ex:pos | ex:neg
+#
+# A rule fires when ALL its selectors pass (count comparison at the top);
+# a selector passes when ANY of its disjuncts passes; a disjunct passes
+# when ALL its conjuncts pass (count comparison per disjunct).  GROUP_CONCAT
+# assembles a human-readable evaluation log at each level.
+#
+# The component VALUES blocks (placeholder IRIs) are injected at query-build
+# time.  Note that the injection must appear in EVERY branch, including -
+# especially - the negative-polarity branches: their MINUS patterns mention
+# ?component, and without a binding on the left of the MINUS the
+# compatibility test is vacuous and the negation silently passes everything.
+#
+# Archived rules never fire (FILTER NOT EXISTS; vacuously true for data
+# without a lifecycleState triple).
+
+PREFIX ex:   <http://a.example/ns#>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+
+SELECT (STRAFTER(STR(?rule), "#") AS ?ruleHash)
+       ?ruleName
+       ?ruleType
+       (STRAFTER(STR(?severityUri), "#") AS ?severity)
+       ?message
+       ?components
+       ?log
+WHERE {
+  {
+    ?rule a ex:Rule ;
+          ex:label ?ruleName ;
+          ex:action [ ex:message ?message ; ex:severity ?severityUri ] .
+    OPTIONAL { ?rule ex:ruleType ?ruleType }
+    FILTER NOT EXISTS { ?rule ex:lifecycleState "archived" }
+    {
+      SELECT ?rule
+             (COUNT(DISTINCT ?selector) AS ?selectorsPassed)
+             (CONCAT(IF(isIRI(?rule), STRAFTER(STR(?rule), "#"), STR(?rule)), "(",
+               GROUP_CONCAT(?selLogStr; SEPARATOR=" + "),
+             ")") AS ?log)
+             (GROUP_CONCAT(DISTINCT REPLACE(STR(?component), "^.*[#/]", ""); SEPARATOR=", ") AS ?components)
+      WHERE {
+        SELECT ?rule ?selector ?component ?selLogStr WHERE {
+          ?rule ex:selector ?selector .
+          {
+            SELECT ?component ?selector
+                   (CONCAT(IF(isIRI(?selector), STRAFTER(STR(?selector), "#"), STR(?selector)),
+                     "(", REPLACE(STR(?component), "^.*[#/]", ""), ", ",
+                     GROUP_CONCAT(?disjLogStr; SEPARATOR="∨"),
+                   ")") AS ?selLog)
+            WHERE {
+              SELECT ?component ?selector ?disjunct ?disjLogStr WHERE {
+                ?selector ex:or ?disjunct .
+                {
+                  SELECT ?component ?disjunct
+                         (COUNT(?conjunct) AS ?conjunctsPassed)
+                         (CONCAT(IF(isIRI(?disjunct), STRAFTER(STR(?disjunct), "#"), STR(?disjunct)), "(",
+                           GROUP_CONCAT(IF(isIRI(?conjunct), STRAFTER(STR(?conjunct), "#"), STR(?conjunct)); SEPARATOR="∧"),
+                         ")") AS ?disjLog)
+                  WHERE {
+                    SELECT ?component ?disjunct ?conjunct WHERE {
+                      ?disjunct ex:and ?conjunct .
+                      {
+                        {
+                          {
+                            # positive group membership
+                            VALUES ?component { <http://a.example/component/PLACEHOLDER> }
+                            ?conjunct ex:polarity ex:pos .
+                            ?conjunct ex:componentGroup ?group .
+                            ?group ex:member ?membership .
+                            ?membership ex:component ?component .
+                          } UNION {
+                            # negative group membership
+                            VALUES ?component { <http://a.example/component/PLACEHOLDER> }
+                            ?conjunct ex:polarity ex:neg .
+                            ?conjunct ex:componentGroup [] .
+                            MINUS {
+                              ?conjunct ex:componentGroup ?group .
+                              ?group ex:member ?membership .
+                              ?membership ex:component ?component
+                            }
+                          }
+                        }
+                      } UNION {
+                        # attribute equality / comparison  (ex:eq lt gt le ge)
+                        VALUES ?component { <http://a.example/component/PLACEHOLDER> }
+                        ?conjunct ex:polarity ?polarity .
+                        ?conjunct ex:attribute ?pred ; ?comparator ?threshold .
+                        FILTER(?comparator IN (ex:eq, ex:lt, ex:gt, ex:le, ex:ge))
+                        ?component ?pred ?actual .
+                        BIND (
+                          IF(?comparator = ex:eq, ?actual =  ?threshold,
+                          IF(?comparator = ex:lt, ?actual <  ?threshold,
+                          IF(?comparator = ex:gt, ?actual >  ?threshold,
+                          IF(?comparator = ex:le, ?actual <= ?threshold,
+                          IF(?comparator = ex:ge, ?actual >= ?threshold,
+                             false)))))
+                          AS ?cmpPass
+                        )
+                        FILTER ((?polarity = ex:pos) = ?cmpPass)
+                      } UNION {
+                        {
+                          {
+                            # positive type check
+                            VALUES ?component { <http://a.example/component/PLACEHOLDER> }
+                            ?conjunct ex:polarity ex:pos .
+                            ?conjunct ex:type ?requiredType .
+                            ?component a ?requiredType
+                          } UNION {
+                            # negative type check
+                            VALUES ?component { <http://a.example/component/PLACEHOLDER> }
+                            ?conjunct ex:polarity ex:neg .
+                            ?conjunct ex:type [] .
+                            MINUS {
+                              ?conjunct ex:type ?requiredType .
+                              ?component a ?requiredType
+                            }
+                          }
+                        }
+                      }
+                    }
+                    ORDER BY ?conjunct
+                  }
+                  GROUP BY ?component ?disjunct
+                }
+                { SELECT ?disjunct (COUNT(*) AS ?conjunctCount)
+                  WHERE { ?disjunct ex:and ?conjunct . }
+                  GROUP BY ?disjunct
+                }
+                FILTER (?conjunctsPassed = ?conjunctCount)
+                BIND(STR(?disjLog) AS ?disjLogStr)
+              }
+              ORDER BY ?disjunct
+            }
+            GROUP BY ?component ?selector
+          }
+          BIND(STR(?selLog) AS ?selLogStr)
+        }
+        ORDER BY ?selector
+      }
+      GROUP BY ?rule
+    }
+    { SELECT ?rule (COUNT(*) AS ?selectorCount)
+      WHERE { ?rule ex:selector ?selector . }
+      GROUP BY ?rule
+    }
+    FILTER (?selectorCount = ?selectorsPassed)
+  }
+  UNION
+  {
+    # Library replacement recommendations: fires when a component in the
+    # assembly has a standard-library replacement available.  ?ruleName and
+    # ?severityUri are empty so the outer SELECT projects "" for both.
+    SELECT ("#|LIB" AS ?rule)
+           ("" AS ?ruleName)
+           ("" AS ?ruleType)
+           ("" AS ?severityUri)
+           (REPLACE(STR(?library), "^.*[#/]", "") AS ?message)
+           (REPLACE(STR(?component), "^.*[#/]", "") AS ?components)
+           (REPLACE(STR(?recommendation), "^.*[#/]", "") AS ?log)
+    WHERE {
+      VALUES ?component { <http://a.example/component/PLACEHOLDER> }
+      ?recommendation
+        a ex:LibraryRecommendation ;
+        ex:source ?component ;
+        ex:target ?library .
+    }
+  }
+}

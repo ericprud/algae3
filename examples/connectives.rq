@@ -1,0 +1,18 @@
+# Approximate SPARQL source of connectives.a3.  |& is UNION and |! is MINUS;
+# || (first-nonempty orelse) and |- (proof-merging union) have no SPARQL
+# equivalent - the closest SPARQL idioms are shown and the manifest notes the
+# semantic gap.
+PREFIX ex: <http://example.org/#>
+SELECT ?x ?name ?id ?p
+FROM <http://example.org/data.ttl>
+WHERE {
+  # || approximated: prefer preferredName, else name
+  OPTIONAL { ?x ex:preferredName ?pn }
+  OPTIONAL { ?x ex:name ?n }
+  BIND (COALESCE(?pn, ?n) AS ?name)
+  { ?x a ex:Book } UNION { ?x a ex:Film }
+  # |- approximated as UNION (SPARQL has no proof merge)
+  { ?x ex:localId ?id } UNION { ?x ex:globalId ?id }
+  { ?x ex:price ?p . FILTER (?p < 10) }
+  MINUS { ?x ex:discontinued true }
+}

@@ -1,0 +1,14 @@
+# Subquery with GROUP BY, aggregation, HAVING-style filtering and sorting.
+PREFIX ex: <http://example.org/#>
+SELECT ?author ?n
+FROM <http://example.org/books.ttl>
+WHERE {
+  ?author a ex:Author .
+  { SELECT ?author (COUNT(DISTINCT ?book) AS ?n)
+           (GROUP_CONCAT(?title; SEPARATOR=", ") AS ?titles)
+    WHERE { ?book ex:by ?author ; ex:title ?title }
+    GROUP BY ?author }
+  FILTER (?n >= 2)
+}
+ORDER BY DESC(?n)
+LIMIT 5

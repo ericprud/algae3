@@ -1,0 +1,11 @@
+# SPARQL source of annotations.a3 (basic BGP with ; abbreviation).
+PREFIX rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#>
+PREFIX d1:  <http://purl.org/dc/elements/1.1/>
+PREFIX a:   <http://www.w3.org/2000/10/annotation-ns#>
+SELECT ?annot ?doc
+FROM <http://example.org/annotations.rdf>
+WHERE {
+  ?annot rdf:type <http://www.w3.org/2000/10/annotation-ns#Annotation> ;
+         d1:creator "Joe" ;
+         a:annotates ?doc .
+}

@@ -1,0 +1,4 @@
+bin/
+lib/*.tab.c
+lib/*.tab.h
+lib/*.yy.c

@@ -1,0 +1,11 @@
+# SPARQL source of from-sparql-topdown.a3 and from-sparql-bottomup.a3:
+# the canonical doubly nested OPTIONAL on which bottom-up and top-down
+# readings diverge (?u bound top-down, unbound bottom-up).
+PREFIX : <http://example.org/ns#>
+SELECT *
+FROM <http://example.org/d>
+WHERE {
+  :a :p ?v
+  OPTIONAL { :b :q ?w
+             OPTIONAL { :c :r ?u FILTER(?v = 1) } }
+}
