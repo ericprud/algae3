@@ -156,3 +156,55 @@ it: `djoin(P, Q)` is SQL's `LATERAL`, and `optjoin`/`notexists` are their
 correlated variants. So the pair of modes is symmetric: Algae 3 with `scope`
 emulates SPARQL, and SPARQL engines with lateral join emulate Algae 3 — the
 two languages differ in which semantics gets the ergonomic surface syntax.
+
+## 7. Reference implementation
+
+`lib/sparql-to-a3.js` (ES module, synced from the SWObjects port) compiles a
+[sparqljs](https://github.com/RubenVerborgh/SPARQL.js) AST to an Algae 3
+script in either mode:
+
+```js
+import { compileText } from "./lib/sparql-to-a3.js";
+const a3 = compileText(rqText, SparqlJs.Parser, baseIRI, { mode: "bottomup" });
+```
+
+- **mode "topdown"** (default) is the structural translation of section 3.
+- **mode "bottomup"** realizes section 4: every group, UNION branch and
+  MINUS operand becomes `scope ( P' ) share (V)` with `V` its SPARQL
+  in-scope variables (BGP/BIND/VALUES/GRAPH/subselect projections
+  contribute; FILTERs and MINUS right sides do not); group filters join
+  after all operands; OPTIONAL-immediate filters are absorbed outside the
+  scope at the LeftJoin (rule 3); out-of-scope expression variables are
+  renamed apart to fresh `?v_N` (rule 2), collision-checked against every
+  variable in the query.
+
+Coverage: SELECT (DISTINCT, ORDER/LIMIT/OFFSET, GROUP BY, HAVING,
+aggregates incl. nested-in-expression `group_concat(x, "sep")`), subselects
+(scope pipelines sharing their projection), ASK (`test`), CONSTRUCT
+(`ask` + `assert`), FROM/FROM NAMED (`load`), GRAPH (`in`), OPTIONAL (`~`),
+UNION (`|&`), MINUS (`|!`, bound to the group accumulated so far), FILTER
+(`{...}`, NOT EXISTS -> `!`), BIND (`let`), VALUES (`bindings`, UNDEF
+kept), `IN` -> `oneof`, and the builtin map of `examples/manifesty.yaml`.
+Unsupported constructs throw with a reason: property paths, SERVICE,
+DESCRIBE, bare FILTER EXISTS.
+
+Two notes on fidelity:
+
+- Rule 3 is applied literally: `OPTIONAL { P FILTER(C) }` emits
+  `~( scope(P') share(V) . {C''} )` even where section 5's worked rendering
+  keeps an already-renamed filter inside the scope - the two placements are
+  semantically identical once rule 2 has renamed the out-of-scope names.
+- `FILTER NOT EXISTS` compiles to `!` in both modes; in bottom-up
+  evaluation `!` is Minus, so SPARQL NOT EXISTS's substitution semantics
+  are only reproduced by the top-down reading. The compiler emits a comment
+  at such sites.
+
+Verification (differential, in the SWObjects checkout): all eight
+`examples/*.rq` compile and parse; the seven evaluable ones match
+`examples/expected/` in **both** modes - in particular
+`nested-optional.rq` compiled bottom-up reproduces SPARQL's
+`{v=1, w=9}` (the `from-sparql-bottomup` golden, `?v` renamed `?v_1` at
+the absorbed inner LeftJoin) while its top-down compilation yields
+`{v=1, w=9, u=7}`; `negation-scoped.rq` matches its per-mode renderings.
+`connectives.rq` is excluded as documented non-equivalent (`||`/`|-`
+exceed SPARQL).
