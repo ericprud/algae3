@@ -99,7 +99,26 @@ into a local graph, which the engine then matches normally:
 - Patterns no RDF triple can match (literal subject/predicate, bnode
   predicate) short-circuit without a round trip.
 
-## 5. Guarantees and limits
+## 5. Running against a live endpoint
+
+The reference implementation's CLI demo (from SWObjects' `tests/`), with
+`bin/sparql` serving the evidence fixtures over the SPARQL protocol:
+
+    ../bin/sparql --serve http://127.0.0.1:8098/sparql \
+        -d Algae3/data/evidence.ttl \
+        -d Algae3/data/evidence-groups.ttl \
+        -d Algae3/data/evidence-rules.ttl &
+    sed 's|^load .*|attach <http://127.0.0.1:8098/sparql> ep|' \
+        Algae3/evidence-dnf.topdown.a3 | awk '!/^attach/ || !seen++' > /tmp/attach.a3
+    ../bin/algae3 /tmp/attach.a3
+
+The output is identical to the local run - result rows *and* proof logs -
+even though the group memberships crossing the round trips are anonymous
+bnodes. The client is plain http (no TLS) and expects
+`application/sparql-results+xml` responses to a form-urlencoded POST of
+`query=`.
+
+## 6. Guarantees and limits
 
 Guaranteed: a proxy's mention re-queries to exactly one node; proxies are
 stable across arbitrarily relabeled responses; ambiguous pins preserve
