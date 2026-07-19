@@ -2,7 +2,11 @@
 
 Status: algorithm note accompanying `attach` (spec §3). Reference
 implementation: SWObjects `lib/BNodeResolver.{hpp,cpp}`, exercised by
-`tests/test_BNodeResolver.cpp`.
+`tests/test_BNodeResolver.cpp`; its `bin/algae3` wires an HTTP SPARQL
+protocol client (form-urlencoded POST, `application/sparql-results+xml`)
+into `attach`, so scripts run against live endpoints. Endpoint data must
+use absolute IRIs — relative ones resolve differently between data load
+and query parse, so they cannot survive the protocol round trip.
 
 ## 1. Why
 
