@@ -154,6 +154,29 @@ entries:
       since `in` is Algae 3's GRAPH keyword.  Aggregate arguments take the
       separator as a plain second argument: group_concat(?x, ", ").
 
+  - id: evidence-dnf
+    title: Evidence-appraisal DNF rule engine (compiler round-trip)
+    sparql: evidence-dnf.rq
+    algae3:
+      - file: evidence-dnf.topdown.a3
+        mode: topdown
+        role: sparql-to-a3.js section-3 output (committed fixture)
+      - file: evidence-dnf.bottomup.a3
+        mode: bottomup
+        role: sparql-to-a3.js section-4 output (committed fixture)
+    demonstrates:
+      [compiler, mode-toggle, values-injection, minus, union, subquery,
+       group-by, count, group-concat, bnode-as-existential]
+    notes: >
+      An evidence-appraisal abstraction of the production rule engine
+      (evidence/observational/rnc/pValue/effectMeasure), structurally
+      identical selectors/disjuncts/conjuncts.  Both compiled forms
+      evaluate to the same golden under BOTH engine modes (the
+      workaround-style query is well-designed); regen-compiled.mjs
+      regenerates and self-checks the fixtures.  SPARQL query blank
+      nodes compile as ?_bn_* variables - BGP-scoped existentials that
+      Algae 3 blank nodes (which do not join across `.`) cannot express.
+
 expression-builtin-map:
   # SPARQL builtin/operator -> Algae 3 call syntax (case per source)
   "= (in FILTER)": "=="
