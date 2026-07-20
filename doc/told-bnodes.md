@@ -118,6 +118,27 @@ bnodes. The client is plain http (no TLS) and expects
 `application/sparql-results+xml` responses to a form-urlencoded POST of
 `query=`.
 
+`bin/sparql --shex-endpoint` runs the ShEx side of the same idea:
+`--shex-endpoint <URL> --shex-schema <schema.shex> --shex-map <map>`
+validates a shape map against the live endpoint instead of an in-memory
+graph, fetching and caching node neighborhoods as validation visits them.
+Fixed associations (`node@shape`, `node@!shape`, `@START`) and one query
+pattern (`{FOCUS <p> _}` / `{_ <p> FOCUS}`) are both supported - the
+pattern's FOCUS candidates are resolved with one additional round trip
+through the same `BNodeResolver::select`, so a bnode FOCUS is told-bnode-
+safe the same way a neighborhood fetch is:
+
+    ../bin/sparql --serve http://127.0.0.1:8099/sparql \
+        -d Algae3/data/evidence.ttl -d Algae3/data/evidence-groups.ttl
+    ../bin/sparql --shex-endpoint http://127.0.0.1:8099/sparql \
+        --shex-schema schema.shex \
+        --shex-map '{FOCUS ex:member _}@<GroupShape>'
+
+(lib/ShExShapeMap.hpp abstracts triple-pattern matching behind a
+`PatternMatcher` interface for this - `LocalPatternMatcher` is the
+pre-existing in-memory behavior manifests use; the CLI's
+`RemotePatternMatcher` is the endpoint-backed one.)
+
 ## 6. Guarantees and limits
 
 Guaranteed: a proxy's mention re-queries to exactly one node; proxies are
